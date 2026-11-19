@@ -1,0 +1,12 @@
+# Render Blueprint: deploys /public as a free Static Site.
+# Render → New → Blueprint → pick this GitHub repo. Every push to main redeploys.
+services:
+  - type: web
+    name: safe-to-spend
+    runtime: static
+    staticPublishPath: ./public
+    buildCommand: ""
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

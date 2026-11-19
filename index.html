@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FAF9F5">
+<title>Safe-to-Spend · Prototype</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23C96442'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='Georgia'>S</text></svg>">
+<!--
+  Safe-to-Spend — Design Thinking prototype.
+  Everything is simulated and saved only in this browser (localStorage). Banks are fictional.
+  Demo codes appear in the pop-up "SMS". App-lock PIN: 1234.
+-->
+<style>
+:root{
+  --paper:#FAF9F5;--canvas:#F0EEE6;--card:#FFFFFF;--ink:#1F1E1D;--muted:#6E6B63;--line:#E8E4D9;
+  --brand:#C96442;--brand-dark:#A9502F;--brand-soft:#F6E7DF;--brand-ink:#8A3D22;
+  --good:#5B7B4A;--good-soft:#E9EFE0;--good-ink:#3F5A31;
+  --warn:#B7791F;--warn-soft:#F7EBD2;--warn-ink:#7A4E10;
+  --bad:#A8322B;--bad-soft:#F6DFDB;--bad-ink:#842620;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --shadow:0 1px 2px rgba(31,30,29,.04),0 8px 24px -12px rgba(31,30,29,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;
+  background:radial-gradient(1200px 600px at 10% -10%,#F6E7DF 0,transparent 60%),radial-gradient(900px 500px at 110% 110%,#E9EFE0 0,transparent 55%),var(--canvas)}
+button,input,textarea{font:inherit;color:inherit}
+::selection{background:var(--brand-soft)}
+
+/* Desktop: intro on the left, phone on the right. Mobile: the app fills the screen. */
+.stage{min-height:100%;display:flex;align-items:center;justify-content:center;gap:72px;padding:32px}
+.intro{max-width:380px}
+.intro .eyebrow{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brand)}
+.intro h1{font-family:var(--serif);font-weight:500;font-size:48px;line-height:1.05;letter-spacing:-.02em;margin-top:12px}
+.intro h1 em{color:var(--brand);font-style:italic}
+.intro p{color:var(--muted);font-size:17px;line-height:1.6;margin-top:16px}
+.intro ul{margin-top:24px;display:grid;gap:12px}
+.intro li{list-style:none;display:flex;gap:12px;align-items:flex-start;font-size:15px;line-height:1.5}
+.intro li span.dot{flex-shrink:0;width:28px;height:28px;border-radius:9px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;color:var(--brand)}
+.intro .foot{margin-top:28px;font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+.phone{position:relative;transform:translateZ(0);width:390px;height:min(844px,calc(100vh - 64px));border-radius:46px;background:var(--paper);
+  border:10px solid #1F1E1D;box-shadow:0 40px 80px -30px rgba(31,30,29,.45),0 0 0 1px rgba(31,30,29,.08);overflow:hidden;flex-shrink:0}
+#app{height:100%;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+#app::-webkit-scrollbar{display:none}
+@media(max-width:900px){
+  .stage{padding:0;display:block}.intro{display:none}
+  .phone{width:100%;height:100vh;height:100dvh;border:0;border-radius:0;box-shadow:none}
+}
+
+/* App */
+header.top{position:sticky;top:0;z-index:5;background:rgba(250,249,245,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:6px}
+.brand{font-family:var(--serif);font-weight:600;font-size:21px;letter-spacing:-.01em;flex:1}
+.brand b{color:var(--brand);font-weight:600}
+main{padding:18px 16px 120px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;margin-bottom:12px;box-shadow:var(--shadow)}
+.soft-good{background:var(--good-soft);border-color:transparent;box-shadow:none}
+.soft-warn{background:var(--warn-soft);border-color:transparent;box-shadow:none}
+.soft-bad{background:var(--bad-soft);border-color:transparent;box-shadow:none}
+.label{font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:6px}
+.big{font-family:var(--serif);font-size:58px;font-weight:500;letter-spacing:-.03em;line-height:1}
+.muted{color:var(--muted)}.small{font-size:13px}.mt{margin-top:12px}.mt2{margin-top:20px}.center{text-align:center}
+h1{font-family:var(--serif);font-weight:500;font-size:30px;letter-spacing:-.02em;line-height:1.15}
+h2{font-family:var(--serif);font-weight:500;font-size:23px;letter-spacing:-.01em;line-height:1.25}
+main>h1+p{margin:6px 0 14px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;border:0;border-radius:16px;background:var(--brand);color:#fff;font-weight:600;font-size:16px;cursor:pointer;transition:background .15s,transform .05s}
+.btn:hover{background:var(--brand-dark)}.btn:active{transform:scale(.99)}.btn:disabled{opacity:.45;cursor:default}
+.btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}.btn.ghost:hover{background:var(--canvas)}
+.btn.danger{background:var(--bad-soft);color:var(--bad-ink);border:1px solid #EFC9C3}.btn.danger:hover{background:#F2D2CD}
+.btn.sm{min-height:40px;width:auto;padding:0 16px;font-size:14px;border-radius:999px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.iconbtn{width:42px;height:42px;border-radius:50%;border:0;background:transparent;display:grid;place-items:center;color:var(--muted);cursor:pointer}.iconbtn:hover{background:var(--canvas);color:var(--ink)}
+label.f{display:block;font-size:14px;font-weight:500;margin-bottom:12px}
+input.in,textarea.in{display:block;width:100%;margin-top:6px;height:50px;border:1px solid var(--line);border-radius:14px;padding:0 14px;background:var(--card);font-size:16px;transition:border-color .15s,box-shadow .15s}
+textarea.in{height:auto;padding:12px 14px;resize:vertical;line-height:1.5}
+input.in:focus,textarea.in:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-soft)}
+.amount{position:relative}.amount span{position:absolute;left:16px;top:50%;transform:translateY(-35%);font-weight:700;color:var(--muted)}
+.amount input{padding-left:62px;height:66px;font-family:var(--serif);font-size:32px;font-weight:500}
+.code{letter-spacing:.6em;text-align:center;font-size:24px!important;font-weight:700;height:60px!important}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px}
+.chip{min-height:44px;padding:0 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-weight:500;color:var(--muted);transition:.15s}
+.chip:hover{border-color:#D8D2C2}
+.chip.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-ink)}
+.pill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:8px 15px;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:15px}
+.bg-good{background:var(--good)}.bg-warn{background:var(--warn)}.bg-bad{background:var(--bad)}
+.bar{height:10px;border-radius:99px;background:var(--canvas);overflow:hidden;margin-top:10px}.bar>div{height:100%;border-radius:99px;transition:width .4s ease}
+.row{display:flex;align-items:center;gap:12px;width:100%;padding:11px 6px;border:0;background:none;text-align:left;cursor:pointer;border-radius:14px}
+.row:hover{background:var(--paper)}.row+.row{border-top:1px solid var(--line)}
+.ricon{width:44px;height:44px;border-radius:14px;background:var(--canvas);display:grid;place-items:center;font-size:20px;flex-shrink:0}
+.grow{flex:1;min-width:0}.trunc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--canvas);color:var(--muted)}
+.badge.bank{background:#E8E4F3;color:#4B3F7A}.badge.ro{background:var(--good-soft);color:var(--good-ink)}.badge.warn{background:var(--bad-soft);color:var(--bad-ink)}
+.strike{text-decoration:line-through;opacity:.5}
+.tabbar{position:fixed;bottom:0;left:0;right:0;z-index:6;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabbar>div{display:grid;grid-template-columns:repeat(5,1fr)}
+.tab{min-height:64px;border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;position:relative}
+.tab.on{color:var(--brand)}.tab.on::before{content:"";position:absolute;top:0;width:28px;height:3px;border-radius:0 0 3px 3px;background:var(--brand)}
+.fab{position:fixed;bottom:82px;right:18px;z-index:7;width:60px;height:60px;border-radius:20px;border:0;background:var(--brand);color:#fff;display:grid;place-items:center;box-shadow:0 14px 28px -10px rgba(201,100,66,.75);cursor:pointer;transition:transform .15s}
+.fab:hover{transform:translateY(-2px)}
+.backdrop{position:fixed;inset:0;background:rgba(31,30,29,.42);z-index:20;display:flex;align-items:flex-end;justify-content:center;animation:fade .15s}
+.sheet{background:var(--paper);width:100%;border-radius:26px 26px 0 0;padding:22px 16px 30px;max-height:90%;overflow:auto;animation:up .2s ease-out}
+.sheet::before{content:"";display:block;width:40px;height:5px;border-radius:9px;background:var(--line);margin:-8px auto 14px}
+@keyframes up{from{transform:translateY(18px);opacity:0}}@keyframes fade{from{opacity:0}}
+.toast{position:fixed;bottom:156px;left:50%;transform:translateX(-50%);z-index:30;background:var(--ink);color:var(--paper);border-radius:14px;padding:12px 16px;display:flex;gap:14px;align-items:center;font-size:14px;width:max-content;max-width:calc(100% - 32px);animation:up .2s}
+.toast button{background:none;border:0;color:#F0B49C;font-weight:700;cursor:pointer}
+.sms{position:fixed;top:10px;left:10px;right:10px;z-index:40;background:rgba(31,30,29,.95);color:var(--paper);border-radius:18px;padding:12px 14px;font-size:14px;line-height:1.45;animation:up .2s;box-shadow:0 12px 30px -10px rgba(0,0,0,.4)}
+.sms b{display:block;font-size:12px;opacity:.65;margin-bottom:2px}
+.switch{width:50px;height:30px;border-radius:99px;border:0;background:#D9D4C7;position:relative;cursor:pointer;flex-shrink:0;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.switch[aria-pressed=true]{background:var(--brand)}.switch[aria-pressed=true]::after{left:23px}
+.list li{list-style:none;display:flex;gap:10px;align-items:flex-start;padding:6px 0;font-size:15px;line-height:1.45}
+.ok{color:var(--good)}.no{color:var(--bad)}.list li span{color:var(--ink)}
+.auth{padding:44px 18px 32px}
+.logo{width:60px;height:60px;border-radius:20px;background:var(--brand);color:#fff;display:grid;place-items:center;margin:0 auto 16px;box-shadow:0 14px 28px -12px rgba(201,100,66,.8)}
+.auth>h1{font-size:34px}.auth>p.muted{margin-top:6px}
+.privacy{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.5;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:11px 13px}
+.privacy svg{color:var(--brand);flex-shrink:0;margin-top:2px}
+.bankhead{border-radius:22px;color:#fff;padding:20px;background-image:linear-gradient(135deg,rgba(255,255,255,.14),transparent 60%)!important;box-shadow:var(--shadow)}
+.spin{width:42px;height:42px;border:4px solid var(--brand-soft);border-top-color:var(--brand);border-radius:50%;animation:s 1s linear infinite;margin:20px auto}
+@keyframes s{to{transform:rotate(360deg)}}
+.keypad{display:grid;grid-template-columns:repeat(3,74px);gap:14px;justify-content:center;margin-top:26px}
+.key{height:74px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-family:var(--serif);font-size:26px;cursor:pointer;box-shadow:var(--shadow)}.key:active{background:var(--brand-soft)}
+.dots{display:flex;gap:14px;justify-content:center;margin-top:22px}.dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--brand)}.dots i.f{background:var(--brand)}
+.steps{display:flex;gap:6px;margin-bottom:22px}.steps i{flex:1;height:6px;border-radius:9px;background:var(--line)}.steps i.f{background:var(--brand)}
+</style>
+</head>
+<body>
+<div class="stage">
+  <aside class="intro">
+    <p class="eyebrow">Design Thinking · Prototype v2</p>
+    <h1>Know what's <em>safe to spend</em> today.</h1>
+    <p>One clear number for Sara, 20, who keeps running out of money before her next payment. Built from our survey of 25 students and working adults.</p>
+    <ul>
+      <li><span class="dot">①</span><span><b>One weekly number.</b> Budget minus bills, split across the days left.</span></li>
+      <li><span class="dot">②</span><span><b>Read-only bank link.</b> Card spends log themselves; it can never move money.</span></li>
+      <li><span class="dot">③</span><span><b>Safety built in.</b> 2-step sign-in, "Was this you?" alerts, scam check, app lock.</span></li>
+    </ul>
+    <p class="foot">Simulated data only, with fictional banks. Demo codes appear as pop-up texts · PIN 1234</p>
+  </aside>
+  <div class="phone"><div id="app"></div></div>
+</div>
+
+<script>
+/* ---------- Constants (taken from the Base44 version) ---------- */
+const KEY = "safe-to-spend-proto", DAY = 864e5;
+const CATS = { Food: "🍔", Transport: "🚌", Fun: "🎉", Other: "🛍️" };
+const PAYS = ["Cash", "Card", "Tap"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const BANKS = [ // fictional banks for the demo
+  { id: "gcb", name: "Gulf Crescent Bank", color: "#1E3A8A" },
+  { id: "drb", name: "Desert Rose Bank", color: "#9D174D" },
+  { id: "odb", name: "Oasis Digital Bank", color: "#047857" },
+  { id: "fnb", name: "Falcon National Bank", color: "#7C2D12" },
+];
+const STATUS = {
+  on_track:  { label: "On track",  msg: "You're doing fine this week.", icon: "check", c: "good" },
+  slow_down: { label: "Slow down", msg: "Careful, most of this week's money is used.", icon: "alert", c: "warn" },
+  over:      { label: "Over",      msg: "You've gone over this week. Let's plan the next few days.", icon: "x", c: "bad" },
+};
+const ICONS = {
+  home: '<path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  bank: '<path d="M3 22h18M6 18v-7M10 18v-7M14 18v-7M18 18v-7M12 2l9 5H3z"/>',
+  chart: '<path d="M3 3v18h18M7 16v-4M12 16V8M17 16v-7"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>', x: '<path d="M18 6L6 18M6 6l12 12"/>',
+  alert: '<path d="M12 3l10 18H2zM12 10v4M12 18h.01"/>', back: '<path d="M15 18l-6-6 6-6"/>',
+};
+const ic = (n, s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const uid = () => Math.random().toString(36).slice(2, 9);
+const code6 = () => String(Math.floor(100000 + Math.random() * 900000));
+
+/* ---------- State (saved) + UI (temporary) ---------- */
+const FRESH = () => ({ screen: "login", tab: "home", email: "", budget: null, spends: [], bank: null, locked: false, log: [],
+  sec: { twoStep: true, remember: true, hide: false, appLock: false, alerts: true } });
+let S; try { S = { ...FRESH(), ...JSON.parse(localStorage.getItem(KEY)) }; } catch { S = FRESH(); }
+let ui = { modal: null, draft: {}, toast: null, sms: null, otp: null, setupStep: 1, setup: { weekly: "400", bills: "80", startDay: 1 },
+  bankStep: null, pickBank: null, bankCode: null, scamText: "", scam: null, pin: "", showBal: false, lastUndo: null };
+
+const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+const log = (t) => { S.log.unshift({ t, at: Date.now() }); S.log = S.log.slice(0, 15); };
+const money = (v) => S.sec.hide ? "AED ••••" : "AED " + Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
+const toast = (text, undo) => { ui.toast = { text, undo }; render(); clearTimeout(toast.t); toast.t = setTimeout(() => { ui.toast = null; render(); }, 5000); };
+const sms = (from, text) => { ui.sms = { from, text }; render(); clearTimeout(sms.t); sms.t = setTimeout(() => { ui.sms = null; render(); }, 9000); };
+
+/* ---------- Budget maths (same rules as Base44: 70% / 100%) ---------- */
+function weekStart(d = new Date()) { const s = new Date(d); s.setHours(0, 0, 0, 0); s.setDate(s.getDate() - ((s.getDay() - (S.budget?.startDay ?? 1) + 7) % 7)); return s; }
+function weekSpends() { const s = weekStart(), e = new Date(+s + 7 * DAY); return S.spends.filter((x) => !x.excluded && new Date(x.date) >= s && new Date(x.date) < e); }
+function stats() {
+  const wb = Math.max(0, (+S.budget.weekly || 0) - (+S.budget.bills || 0));
+  const spent = weekSpends().reduce((a, x) => a + +x.amount, 0), left = wb - spent;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const daysLeft = Math.min(7, Math.max(1, Math.round((+weekStart() + 7 * DAY - today) / DAY)));
+  const ratio = wb > 0 ? spent / wb : spent > 0 ? 2 : 0;
+  return { wb, spent, left, daysLeft, perDay: left > 0 ? Math.floor(left / daysLeft) : 0, ratio, status: ratio <= 0.7 ? "on_track" : ratio <= 1 ? "slow_down" : "over" };
+}
+function byCategory(list) { const m = {}; Object.keys(CATS).forEach((c) => (m[c] = 0)); list.forEach((x) => (m[x.category] += +x.amount)); return Object.entries(m).sort((a, b) => b[1] - a[1]); }
+function weekTip(list) { const [cat, amt] = byCategory(list)[0]; return amt ? `Try keeping ${cat} under AED ${Math.max(5, Math.round((amt * 0.85) / 5) * 5)} next week.` : "Log a few spends and we'll suggest a small target for next week."; }
+function dayLabel(iso) { const d = new Date(iso); d.setHours(0, 0, 0, 0); const t = new Date(); t.setHours(0, 0, 0, 0); const diff = Math.round((t - d) / DAY); return diff === 0 ? "Today" : diff === 1 ? "Yesterday" : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); }
+function dateThisWeek(offset, h = 13) { const d = new Date(+weekStart() + offset * DAY); d.setHours(h, 0, 0, 0); return d > new Date() ? new Date() : d; }
+
+/* ---------- Scam check (simple rules, like a first filter) ---------- */
+function scamCheck(text) {
+  const t = text.toLowerCase(), flags = []; let score = 0;
+  [[/\b(otp|one[- ]time|pin|password|cvv)\b/, "Asks for a code, PIN or password. Your bank will never ask for these.", 3],
+   [/(send|transfer|pay).{0,25}(money|aed|amount|fee)|gift card|crypto|bitcoin/, "Asks you to send money or pay a fee.", 3],
+   [/(won|winner|prize|lottery|reward|cashback)/, "Promises a prize or reward.", 2],
+   [/(blocked|suspended|locked|deactivated|frozen|expired)/, "Says your account or card is blocked.", 2],
+   [/(urgent|immediately|within 24|today only|act now|final notice)/, "Pushes you to act fast.", 2],
+   [/(https?:\/\/|www\.|bit\.ly|tinyurl|\.xyz|\.top|\.info)/, "Contains a link. Open your bank's app yourself instead of tapping it.", 2],
+   [/(dear customer|dear user|dear client)/, "Uses a general greeting instead of your name.", 1],
+  ].forEach(([re, why, w]) => { if (re.test(t)) { flags.push(why); score += w; } });
+  return { level: score >= 4 ? "high" : score >= 2 ? "medium" : "low", flags };
+}
+
+/* ---------- Pieces ---------- */
+const privacy = () => `<p class="privacy">${ic("lock", 16)}<span>Your data stays private on this device. Bank access is <b>read-only</b>: Safe-to-Spend can never move your money.</span></p>`;
+const pill = (st) => `<span class="pill bg-${STATUS[st].c}">${ic(STATUS[st].icon, 18)}${STATUS[st].label}</span>`;
+const sw = (key) => `<button class="switch" aria-pressed="${!!S.sec[key]}" data-act="toggle" data-v="${key}" aria-label="${key}"></button>`;
+function spendRow(x) {
+  return `<button class="row" data-act="edit" data-v="${x.id}"><span class="ricon">${CATS[x.category]}</span>
+    <span class="grow"><span class="trunc ${x.excluded ? "strike" : ""}" style="display:block;font-weight:500">${esc(x.note || x.category)}</span>
+    <span class="small muted">${x.category} · ${x.payment} · ${dayLabel(x.date)} ${x.source === "bank" ? '<span class="badge bank">Bank</span>' : '<span class="badge">Manual</span>'} ${x.flagged ? '<span class="badge warn">Check</span>' : ""}</span></span>
+    <b class="${x.excluded ? "strike" : ""}">${money(x.amount)}</b></button>`;
+}
+
+/* ---------- Screens ---------- */
+function loginView() {
+  return `<div class="auth"><div class="logo">${ic("shield", 28)}</div>
+  <h1 class="center">Safe-to-Spend</h1><p class="muted center">One number: what you can safely spend today.</p>
+  <form class="card mt2" data-form="login">
+    <label class="f">Email<input class="in" id="email" type="email" required value="sara@uni.ae" autocomplete="email"></label>
+    <label class="f">Password<input class="in" id="pw" type="password" required value="demo1234"></label>
+    <button class="btn">Log in</button><p class="small muted center mt">Prototype: any email and password work.</p>
+  </form>${privacy()}</div>`;
+}
+function otpView() {
+  return `<div class="auth"><div class="logo">${ic("shield", 28)}</div>
+  <h1 class="center">Verify it's you</h1><p class="muted center">2-step verification: enter the 6-digit code we texted to •••• 67.</p>
+  <form class="card mt2" data-form="otp">
+    <input class="in code" id="otp" inputmode="numeric" maxlength="6" placeholder="••••••" autofocus autocomplete="one-time-code">
+    <label class="small muted" style="display:flex;gap:8px;align-items:center;margin:14px 0"><input type="checkbox" id="rem" ${S.sec.remember ? "checked" : ""}> Remember this device for 30 days</label>
+    <button class="btn">Verify</button>
+    <button type="button" class="btn ghost mt" data-act="resend">Resend code</button>
+  </form><p class="small muted center">Codes expire after 5 minutes. We will never call you to ask for this code.</p></div>`;
+}
+function setupView() {
+  const st = ui.setupStep, d = ui.setup, wb = Math.max(0, (+d.weekly || 0) - (+d.bills || 0));
+  const steps = `<div class="steps">${[1, 2, 3, 4].map((i) => `<i class="${i <= st ? "f" : ""}"></i>`).join("")}</div>`;
+  const body = {
+    1: `<h2>How much money do you get each week?</h2><p class="muted mt">Allowance, salary or part-time pay.</p><div class="amount mt"><span>AED</span><input class="in" id="sv" inputmode="decimal" value="${esc(d.weekly)}" autofocus></div>`,
+    2: `<h2>What are your fixed bills each week?</h2><p class="muted mt">Phone, transport pass, subscriptions. These come off first.</p><div class="amount mt"><span>AED</span><input class="in" id="sv" inputmode="decimal" value="${esc(d.bills)}" autofocus></div>`,
+    3: `<h2>Which day does your week start?</h2><p class="muted mt">Pick the day your money usually comes in.</p><div class="chips mt">${DAYS.map((n, i) => `<button class="chip ${d.startDay === i ? "on" : ""}" data-act="startDay" data-v="${i}">${n}</button>`).join("")}</div>`,
+    4: `<p class="label">All set</p><h2 class="mt">Your first weekly budget is ready</h2><p class="big mt" style="color:var(--good-ink)">AED ${wb}</p><p class="muted mt">AED ${+d.weekly || 0} a week minus AED ${+d.bills || 0} of bills. No bank login needed: you can connect a bank later to log spends automatically.</p>`,
+  }[st];
+  return `<div class="auth">${steps}<div class="card">${body}</div>
+    <div class="grid2">${st > 1 ? `<button class="btn ghost" data-act="setupBack">Back</button>` : "<span></span>"}<button class="btn" data-act="setupNext">${st === 4 ? "Go to home" : "Next"}</button></div>
+    <div class="mt">${privacy()}</div></div>`;
+}
+function lockView() {
+  return `<div class="auth center"><div class="logo">${ic("lock", 28)}</div><h1>App locked</h1><p class="muted">Enter your PIN (demo: 1234)</p>
+  <div class="dots">${[0, 1, 2, 3].map((i) => `<i class="${i < ui.pin.length ? "f" : ""}"></i>`).join("")}</div>
+  <div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9, "", 0, "⌫"].map((k) => k === "" ? "<span></span>" : `<button class="key" data-act="pin" data-v="${k}">${k}</button>`).join("")}</div></div>`;
+}
+
+/* ---------- Tabs ---------- */
+function homeTab() {
+  const s = stats(), st = STATUS[s.status], recent = [...S.spends].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3);
+  const flagged = S.spends.find((x) => x.flagged), sub = S.bank && S.spends.find((x) => x.subscription);
+  return `
+  <section class="card soft-${st.c}"><p class="label" style="color:var(--${st.c}-ink)">Safe to spend today</p>
+    <p class="mt" style="display:flex;align-items:baseline;gap:8px"><b style="font-size:20px">AED</b><span class="big">${S.sec.hide ? "••••" : s.perDay}</span></p>
+    <p class="mt" style="font-size:15px"><b>${money(Math.abs(s.left))}</b> ${s.left < 0 ? "over this week" : "left this week"} · ${s.daysLeft} ${s.daysLeft === 1 ? "day" : "days"} remaining</p>
+    <div class="mt">${pill(s.status)}</div><p class="mt" style="font-size:15px">${st.msg}</p></section>
+  <section class="card"><div style="display:flex;justify-content:space-between"><span class="small muted">This week</span><b class="small">${money(s.spent)} <span class="muted">of ${money(s.wb)}</span></b></div>
+    <div class="bar" role="progressbar" aria-valuenow="${Math.round(s.ratio * 100)}"><div class="bg-${st.c}" style="width:${Math.min(100, s.ratio * 100)}%"></div></div></section>
+  ${flagged && S.sec.alerts ? `<section class="card soft-bad"><p class="label" style="color:var(--bad-ink)">${ic("alert", 14)} Unusual payment</p>
+    <p class="mt"><b>Was this you?</b> ${esc(flagged.note)} · ${money(flagged.amount)}</p><p class="small muted">Much bigger than your usual spends, from a merchant you haven't used before.</p>
+    <div class="grid2 mt"><button class="btn sm ghost" data-act="flagOk">Yes, it was me</button><button class="btn sm danger" data-act="flagNo">Not me</button></div></section>` : ""}
+  ${sub ? `<section class="card soft-warn"><p class="label" style="color:var(--warn-ink)">Subscription spotted</p><p class="mt"><b>${esc(sub.note)}</b> renews in 2 days · ${money(sub.amount)}</p><p class="small muted">Found in your bank transactions. Cancel it in the service's app if you don't use it.</p></section>` : ""}
+  ${S.bank ? `<section class="card" style="display:flex;align-items:center;gap:12px"><span class="ricon" style="background:${S.bank.color};color:#fff">${ic("bank", 20)}</span>
+    <span class="grow"><b>${S.bank.name}</b> <span class="badge ro">Read-only</span><br><span class="small muted">Spends log themselves · synced ${dayLabel(S.bank.synced).toLowerCase()}</span></span>
+    <button class="btn sm ghost" data-act="sync">Sync</button></section>`
+  : `<section class="card"><b>Tired of logging every spend?</b><p class="small muted mt">Connect your bank (read-only) and card spends log themselves. Cash you add with +.</p><button class="btn sm mt" data-act="goBank">${ic("bank", 16)} Connect bank</button></section>`}
+  <section class="card"><div style="display:flex;justify-content:space-between;align-items:center"><p class="label">Latest spends</p><button class="btn sm ghost" data-act="tab" data-v="spends">See all</button></div>
+    ${recent.length ? recent.map(spendRow).join("") : `<p class="muted mt">Nothing yet. Tap + to add your first spend. It takes about 3 seconds.</p>`}</section>
+  <section class="card small"><p class="label">What the words mean</p>
+    ${["on_track:up to 70% used", "slow_down:70–100% used", "over:over 100% used"].map((r) => { const [k, m] = r.split(":"); return `<p class="mt" style="display:flex;gap:8px;align-items:center;color:var(--${STATUS[k].c}-ink)">${ic(STATUS[k].icon, 16)}<b>${STATUS[k].label}</b><span class="muted">${m}</span></p>`; }).join("")}</section>`;
+}
+function spendsTab() {
+  const all = [...S.spends].sort((a, b) => new Date(b.date) - new Date(a.date)), groups = {};
+  all.forEach((x) => (groups[dayLabel(x.date)] ||= []).push(x));
+  return `<h1>All spends</h1><p class="muted">Tap one to edit or delete. <span class="badge bank">Bank</span> = imported, <span class="badge">Manual</span> = added by you.</p>
+  ${Object.keys(groups).length ? Object.entries(groups).map(([d, l]) => `<p class="label mt2">${d} · ${money(l.filter((x) => !x.excluded).reduce((a, x) => a + +x.amount, 0))}</p><div class="card" style="padding:6px">${l.map(spendRow).join("")}</div>`).join("") : `<div class="card mt">No spends yet.</div>`}`;
+}
+function bankTab() {
+  if (ui.bankStep === "consent") {
+    const b = ui.pickBank;
+    return `<button class="btn sm ghost" data-act="bankCancel">${ic("back", 16)} Back</button>
+    <div class="card mt"><p class="label">Permission request</p><h2 class="mt">Safe-to-Spend wants read-only access to ${b.name}</h2>
+      <p class="mt"><b>It will be able to:</b></p><ul class="list"><li class="ok">${ic("check", 18)}<span>See your account balance</span></li><li class="ok">${ic("check", 18)}<span>See your transactions from the last 90 days</span></li></ul>
+      <p class="mt"><b>It will <span class="no">never</span> be able to:</b></p><ul class="list"><li class="no">${ic("x", 18)}<span>Move, send or spend your money</span></li><li class="no">${ic("x", 18)}<span>See your bank password, PIN or card number</span></li><li class="no">${ic("x", 18)}<span>Share your data with anyone else</span></li></ul>
+      <p class="small muted mt">Access lasts 90 days, then we ask again. You can disconnect any time and your bank data is deleted.</p></div>
+    <div class="grid2"><button class="btn ghost" data-act="bankCancel">Deny</button><button class="btn" data-act="toBank">Continue to bank</button></div>`;
+  }
+  if (ui.bankStep === "approve") {
+    const b = ui.pickBank;
+    return `<div class="bankhead" style="background:${b.color}"><p class="small" style="opacity:.8">${ic("lock", 14)} Secure sign-in · ${b.name} (demo)</p><h2 class="mt">Approve read-only access</h2></div>
+    <form class="card mt" data-form="bankOtp"><p class="small muted">This step happens at your bank, not in Safe-to-Spend, so we never see your password. Enter the code ${b.name} texted you.</p>
+      <input class="in code mt" id="bcode" inputmode="numeric" maxlength="6" placeholder="••••••" autofocus>
+      <button class="btn mt">Approve</button><button type="button" class="btn ghost mt" data-act="bankCancel">Cancel</button></form>`;
+  }
+  if (ui.bankStep === "sync") return `<div class="card center mt2"><div class="spin"></div><b>Importing this week's transactions…</b><p class="small muted mt">Encrypted connection · read-only</p></div>`;
+  if (!S.bank) return `<h1>Connect your bank</h1><p class="muted">Card and tap spends log themselves, so you only add cash.</p>
+    <div class="card mt"><ul class="list"><li class="ok">${ic("shield", 18)}<span><b>Read-only.</b> We can see spends, never move money.</span></li>
+      <li class="ok">${ic("lock", 18)}<span><b>You sign in at your bank.</b> We never see your password.</span></li>
+      <li class="ok">${ic("x", 18)}<span><b>Disconnect any time.</b> Your bank data is deleted straight away.</span></li></ul></div>
+    <p class="label mt2">Choose your bank</p><div class="card" style="padding:6px">${BANKS.map((b) => `<button class="row" data-act="pickBank" data-v="${b.id}"><span class="ricon" style="background:${b.color};color:#fff">${ic("bank", 20)}</span><span class="grow"><b>${b.name}</b><br><span class="small muted">Fictional bank for this demo</span></span>›</button>`).join("")}</div>
+    <p class="small muted center">Prefer not to? Everything still works by adding spends by hand.</p>`;
+  const imported = S.spends.filter((x) => x.source === "bank").length;
+  return `<h1>Your bank</h1>
+  <div class="bankhead mt" style="background:${S.bank.color}"><p class="small" style="opacity:.85">${S.bank.name} · Current account •••• 4821</p>
+    <p class="small mt" style="opacity:.85">Balance</p><div style="display:flex;align-items:center;gap:8px"><b style="font-size:32px">${ui.showBal && !S.sec.hide ? "AED 3,240.50" : "AED ••••••"}</b>
+    <button class="iconbtn" style="color:#fff" data-act="showBal" aria-label="Show balance">${ic("eye", 20)}</button></div>
+    <p class="small mt"><span class="badge ro">Read-only</span> &nbsp;Last synced ${new Date(S.bank.synced).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</p></div>
+  <button class="btn mt" data-act="sync">Sync now</button>
+  <div class="card mt"><p class="label">What we can see</p><ul class="list mt"><li class="ok">${ic("check", 18)}<span>Balance and transactions (${imported} imported)</span></li><li class="no">${ic("x", 18)}<span>Cannot move money or see your password</span></li></ul>
+    <p class="small muted mt">Access expires ${new Date(S.bank.expires).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.</p></div>
+  <button class="btn danger" data-act="askDisconnect">Disconnect and delete bank data</button>`;
+}
+function recapTab() {
+  const s = stats(), list = weekSpends(), cats = byCategory(list), ws = weekStart();
+  return `<h1>Weekly recap</h1><p class="muted">Week of ${ws.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>
+  <section class="card mt"><p class="big">${money(s.spent)}</p><p class="muted">spent of ${money(s.wb)} this week</p><div class="mt">${pill(s.status)}</div>
+    <div class="mt2" style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px"><span class="muted">${s.left >= 0 ? "Left this week" : "Over this week"}</span><b>${money(Math.abs(s.left))}</b></div>
+    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;margin-top:10px"><span class="muted">Biggest category</span><b>${cats[0][1] ? `${cats[0][0]} · ${money(cats[0][1])}` : "—"}</b></div>
+    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;margin-top:10px"><span class="muted">Logged by bank / by you</span><b>${list.filter((x) => x.source === "bank").length} / ${list.filter((x) => x.source !== "bank").length}</b></div></section>
+  <section class="card"><p class="label">Where it went</p>${cats.map(([c, a]) => `<div class="mt"><div style="display:flex;justify-content:space-between" class="small"><span>${CATS[c]} ${c}</span><b>${money(a)}</b></div><div class="bar"><div class="bg-good" style="width:${s.spent ? (a / s.spent) * 100 : 0}%"></div></div></div>`).join("")}</section>
+  <section class="card soft-good">💡 ${weekTip(list)}</section>
+  <button class="btn" data-act="recapEmail">Email me this recap every Sunday</button>`;
+}
+function safetyTab() {
+  const on = ["twoStep", "appLock", "alerts", "hide"].filter((k) => S.sec[k]).length, r = ui.scam;
+  const rc = r && { high: ["bad", "Likely a scam"], medium: ["warn", "Be careful"], low: ["good", "No common scam signs found"] }[r.level];
+  return `<h1>Safety</h1>
+  <section class="card soft-good" style="display:flex;gap:12px;align-items:center"><span style="color:var(--good-ink)">${ic("shield", 34)}</span><span><b>${on} of 4 protections on</b><br><span class="small muted">${on === 4 ? "Great, your account is well protected." : "Turn on the rest below for more protection."}</span></span></section>
+  <section class="card"><p class="label">Scam check</p><p class="small muted mt">Got a message about your money and not sure it's real? Paste it here.</p>
+    <textarea class="in" id="scam" rows="4" data-bind="scamText" placeholder="Paste the SMS, WhatsApp or email here…">${esc(ui.scamText)}</textarea>
+    <div class="chips"><button class="chip" data-act="sample" data-v="0">Try a scam example</button><button class="chip" data-act="sample" data-v="1">Try a real one</button></div>
+    <button class="btn" data-act="scanScam">Check message</button>
+    ${r ? `<div class="card soft-${rc[0]} mt" style="margin-bottom:0"><b style="color:var(--${rc[0]}-ink)">${ic(r.level === "low" ? "check" : "alert", 18)} ${rc[1]}</b>
+      ${r.flags.length ? `<ul class="list mt">${r.flags.map((f) => `<li>• ${f}</li>`).join("")}</ul>` : ""}
+      <p class="small mt"><b>Still unsure?</b> Don't reply or tap links. Call your bank on the number printed on your card.</p></div>` : ""}</section>
+  <section class="card"><p class="label">Protections</p>
+    ${[["twoStep", "2-step verification", "A code is texted to you each time you sign in."], ["appLock", "App lock", "Locks after 1 minute of no use. Demo PIN: 1234."], ["alerts", "Unusual payment alerts", "Asks 'Was this you?' for odd bank payments."], ["hide", "Hide amounts", "For when people can see your screen."], ["remember", "Remember this device", "Skip the code on this device for 30 days."]]
+      .map(([k, t, d]) => `<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)"><span class="grow"><b>${t}</b><br><span class="small muted">${d}</span></span>${sw(k)}</div>`).join("")}</section>
+  <section class="card"><p class="label">Connected access</p>${S.bank ? `<div style="display:flex;align-items:center;gap:10px;margin-top:10px"><span class="grow"><b>${S.bank.name}</b> <span class="badge ro">Read-only</span><br><span class="small muted">Balance and transactions</span></span><button class="btn sm danger" data-act="askDisconnect">Revoke</button></div>` : `<p class="small muted mt">No banks connected.</p>`}</section>
+  <section class="card"><p class="label">Recent activity</p>${S.log.slice(0, 6).map((l) => `<p class="small mt" style="display:flex;justify-content:space-between;gap:10px"><span>${esc(l.t)}</span><span class="muted">${new Date(l.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span></p>`).join("") || '<p class="small muted mt">Nothing yet.</p>'}
+    <p class="small muted mt">Don't recognise something? Sign out and change your password.</p></section>
+  ${privacy()}
+  <div class="grid2 mt"><button class="btn ghost" data-act="logout">Sign out</button><button class="btn danger" data-act="reset">Reset demo</button></div>`;
+}
+
+/* ---------- Sheets (add / edit / disconnect) ---------- */
+function modalView() {
+  if (!ui.modal) return "";
+  if (ui.modal === "disconnect") return `<div class="backdrop" data-act="close"><div class="sheet" data-stop><h2>Disconnect ${S.bank.name}?</h2>
+    <p class="muted mt">We'll stop reading your bank and delete every imported transaction from this app. Spends you added by hand stay.</p>
+    <button class="btn danger mt2" data-act="disconnect">Disconnect and delete</button><button class="btn ghost mt" data-act="close">Keep connected</button></div></div>`;
+  const d = ui.draft, editing = ui.modal === "edit";
+  return `<div class="backdrop" data-act="close"><form class="sheet" data-stop data-form="spend"><h2>${editing ? "Edit spend" : "Add a spend"}</h2><p class="small muted">${editing ? (d.source === "bank" ? "Imported from your bank." : "Added by you.") : "Amount, category, done — about 3 seconds."}</p>
+    <div class="amount mt"><span>AED</span><input class="in" id="amt" inputmode="decimal" placeholder="0" value="${esc(d.amount)}" data-bind="amount" ${editing ? "" : "autofocus"}></div>
+    ${d.err ? `<p class="small" style="color:var(--bad-ink);margin-top:6px">${d.err}</p>` : ""}
+    <p class="small mt"><b>Category</b></p><div class="chips">${Object.entries(CATS).map(([c, e]) => `<button type="button" class="chip ${d.category === c ? "on" : ""}" data-act="draft" data-k="category" data-v="${c}">${e} ${c}</button>`).join("")}</div>
+    <p class="small"><b>Paid with</b></p><div class="chips">${PAYS.map((p) => `<button type="button" class="chip ${d.payment === p ? "on" : ""}" data-act="draft" data-k="payment" data-v="${p}">${p}</button>`).join("")}</div>
+    <label class="f">Note (optional)<input class="in" id="note" value="${esc(d.note)}" data-bind="note" placeholder="Coffee with friends"></label>
+    <button class="btn">${editing ? "Save changes" : "Save"}</button>
+    ${editing ? `<button type="button" class="btn danger mt" data-act="delete">Delete spend</button>` : ""}
+    <button type="button" class="btn ghost mt" data-act="close">Cancel</button></form></div>`;
+}
+
+/* ---------- Render ---------- */
+function render() {
+  let html;
+  if (S.locked) html = lockView();
+  else if (S.screen === "login") html = loginView();
+  else if (S.screen === "otp") html = otpView();
+  else if (S.screen === "setup") html = setupView();
+  else {
+    const tabs = [["home", "Home", "home"], ["spends", "Spends", "list"], ["bank", "Bank", "bank"], ["recap", "Recap", "chart"], ["safety", "Safety", "shield"]];
+    html = `<header class="top"><span class="brand">Safe-to-<b>Spend</b></span>
+      <button class="iconbtn" data-act="toggle" data-v="hide" aria-label="Hide amounts">${ic("eye", 20)}</button>
+      ${S.sec.appLock ? `<button class="iconbtn" data-act="lock" aria-label="Lock now">${ic("lock", 20)}</button>` : ""}</header>
+      <main>${{ home: homeTab, spends: spendsTab, bank: bankTab, recap: recapTab, safety: safetyTab }[S.tab]()}</main>
+      ${["home", "spends"].includes(S.tab) ? `<button class="fab" data-act="add" aria-label="Add a spend">${ic("plus", 28)}</button>` : ""}
+      <nav class="tabbar"><div>${tabs.map(([k, l, i]) => `<button class="tab ${S.tab === k ? "on" : ""}" data-act="tab" data-v="${k}">${ic(i)}${l}</button>`).join("")}</div></nav>${modalView()}`;
+  }
+  if (ui.toast) html += `<div class="toast">${esc(ui.toast.text)}${ui.toast.undo ? `<button data-act="undo">Undo</button>` : ""}</div>`;
+  if (ui.sms) html += `<div class="sms"><b>💬 ${esc(ui.sms.from)} · now</b>${esc(ui.sms.text)}</div>`;
+  const active = document.activeElement?.id, pos = document.activeElement?.selectionStart;
+  document.getElementById("app").innerHTML = html;
+  const el = active && document.getElementById(active);
+  if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch {} } else document.querySelector("[autofocus]")?.focus();
+  save();
+}
+
+/* ---------- Actions ---------- */
+function seedDemo() {
+  const today = (new Date().getDay() - S.budget.startDay + 7) % 7;
+  [[0, 22, "Food", "Tap", "Lunch at uni"], [0, 15, "Transport", "Card", "Taxi home"], [1, 40, "Fun", "Card", "Cinema"], [2, 9, "Food", "Cash", "Karak and snack"]]
+    .filter(([o]) => o <= today).forEach(([o, a, c, p, n]) => S.spends.push({ id: uid(), amount: a, category: c, payment: p, note: n, date: dateThisWeek(o).toISOString(), source: "manual" }));
+}
+function importBank() {
+  const today = (new Date().getDay() - S.budget.startDay + 7) % 7;
+  [[0, 64.5, "Food", "Card", "Grocery Mart"], [1, 30, "Transport", "Card", "Metro card top-up"], [Math.min(1, today), 35, "Other", "Card", "StreamPlus subscription", { subscription: true }], [today, 349, "Other", "Card", "ONLINE*XK29 PAYMENT", { flagged: true }]]
+    .filter(([o]) => o <= today).forEach(([o, a, c, p, n, extra]) => S.spends.push({ id: uid(), amount: a, category: c, payment: p, note: n, date: dateThisWeek(o, 11).toISOString(), source: "bank", ...extra }));
+}
+const act = {
+  tab: (v) => { S.tab = v; ui.bankStep = null; document.getElementById("app").scrollTop = 0; render(); },
+  goBank: () => act.tab("bank"),
+  resend: () => { ui.otp = code6(); sms("Safe-to-Spend", `Your sign-in code is ${ui.otp}. Never share it with anyone, even us.`); },
+  setupNext: () => {
+    const v = document.getElementById("sv")?.value;
+    if (ui.setupStep === 1) { if (!(+v > 0)) return toast("Please enter an amount bigger than zero"); ui.setup.weekly = v; }
+    if (ui.setupStep === 2) { if (!(+v >= 0)) return toast("Please enter 0 or more"); ui.setup.bills = v; }
+    if (ui.setupStep < 4) { ui.setupStep++; return render(); }
+    S.budget = { weekly: +ui.setup.weekly, bills: +ui.setup.bills, startDay: ui.setup.startDay }; seedDemo();
+    S.screen = "app"; S.tab = "home"; log("Weekly budget created"); render();
+  },
+  setupBack: () => { ui.setupStep--; render(); },
+  startDay: (v) => { ui.setup.startDay = +v; render(); },
+  add: () => { ui.draft = { amount: "", category: "Food", payment: "Tap", note: "" }; ui.modal = "add"; render(); },
+  edit: (id) => { const x = S.spends.find((s) => s.id === id); ui.draft = { ...x, amount: String(x.amount) }; ui.modal = "edit"; render(); },
+  draft: (v, el) => { ui.draft[el.dataset.k] = v; render(); },
+  close: () => { ui.modal = null; render(); },
+  delete: () => { const i = S.spends.findIndex((s) => s.id === ui.draft.id); ui.lastUndo = { type: "restore", item: S.spends[i] }; S.spends.splice(i, 1); ui.modal = null; toast("Spend deleted", true); },
+  undo: () => { const u = ui.lastUndo; if (!u) return; if (u.type === "restore") S.spends.push(u.item); if (u.type === "remove") S.spends = S.spends.filter((s) => s.id !== u.id); if (u.type === "edit") S.spends = S.spends.map((s) => (s.id === u.item.id ? u.item : s)); ui.lastUndo = null; ui.toast = null; render(); },
+  pickBank: (id) => { ui.pickBank = BANKS.find((b) => b.id === id); ui.bankStep = "consent"; render(); },
+  bankCancel: () => { ui.bankStep = null; render(); },
+  toBank: () => { ui.bankStep = "approve"; ui.bankCode = code6(); render(); setTimeout(() => sms(ui.pickBank.name, `${ui.bankCode} is your code to give Safe-to-Spend READ-ONLY access. Don't share it with anyone who calls you.`), 400); },
+  sync: () => { if (!S.bank) return; S.spends.push({ id: uid(), amount: 18, category: "Food", payment: "Tap", note: "Coffee House", date: new Date().toISOString(), source: "bank" }); S.bank.synced = Date.now(); log(`Synced ${S.bank.name}`); toast("1 new transaction imported"); },
+  showBal: () => { ui.showBal = !ui.showBal; render(); },
+  askDisconnect: () => { ui.modal = "disconnect"; render(); },
+  disconnect: () => { log(`Disconnected ${S.bank.name} and deleted bank data`); S.spends = S.spends.filter((x) => x.source !== "bank"); S.bank = null; ui.modal = null; toast("Bank disconnected. Imported data deleted."); },
+  flagOk: () => { S.spends.find((x) => x.flagged).flagged = false; log("Confirmed an unusual payment"); toast("Thanks, marked as yours"); },
+  flagNo: () => { const x = S.spends.find((s) => s.flagged); x.flagged = false; x.excluded = true; log("Reported a payment as not mine"); ui.modal = null;
+    sms("Safe-to-Spend", "We've left that payment out of your budget. We can't block cards (read-only), so call your bank now on the number on your card to block it."); },
+  toggle: (k) => { S.sec[k] = !S.sec[k]; log(`${k === "twoStep" ? "2-step verification" : k === "appLock" ? "App lock" : k === "hide" ? "Hide amounts" : k === "alerts" ? "Payment alerts" : "Remember device"} turned ${S.sec[k] ? "on" : "off"}`); render(); },
+  lock: () => { S.locked = true; ui.pin = ""; render(); },
+  pin: (k) => { if (k === "⌫") ui.pin = ui.pin.slice(0, -1); else if (ui.pin.length < 4) ui.pin += k;
+    if (ui.pin.length === 4) { if (ui.pin === "1234") { S.locked = false; log("Unlocked with PIN"); } else { toast("Wrong PIN, try again"); log("Wrong PIN entered"); } ui.pin = ""; } render(); },
+  sample: (v) => { ui.scamText = ["Dear customer, your card has been BLOCKED. Verify now at http://secure-bank-verify.xyz and share the OTP to unlock within 24 hours.", "Hi Sara, your October statement is ready. Open the Gulf Crescent Bank app to view it."][v]; ui.scam = null; render(); },
+  scanScam: () => { if (!ui.scamText.trim()) return toast("Paste a message first"); ui.scam = scamCheck(ui.scamText); log("Checked a message for scams"); render(); },
+  recapEmail: () => toast("Done. Your recap will arrive every Sunday evening."),
+  logout: () => { log("Signed out"); S.screen = "login"; render(); },
+  reset: () => { if (confirm("Delete all demo data and start again?")) { localStorage.removeItem(KEY); S = FRESH(); ui.setupStep = 1; render(); } },
+};
+const forms = {
+  login: () => { S.email = document.getElementById("email").value; log("Signed in with password");
+    if (S.sec.twoStep && !(S.sec.remember && S.deviceOk)) { S.screen = "otp"; render(); act.resend(); } else finishLogin(); },
+  otp: () => { if (document.getElementById("otp").value !== ui.otp) { toast("That code isn't right. Check the text and try again."); log("Wrong sign-in code entered"); return; }
+    S.sec.remember = document.getElementById("rem").checked; S.deviceOk = S.sec.remember; log("2-step verification passed"); ui.sms = null; finishLogin(); },
+  bankOtp: () => { if (document.getElementById("bcode").value !== ui.bankCode) return toast("Wrong code. Check the text from your bank.");
+    ui.bankStep = "sync"; ui.sms = null; render();
+    setTimeout(() => { const b = ui.pickBank; S.bank = { ...b, synced: Date.now(), expires: Date.now() + 90 * DAY }; importBank(); log(`Connected ${b.name} (read-only)`); ui.bankStep = null; S.tab = "home"; render(); toast("Bank connected. Card spends now log themselves."); }, 1500); },
+  spend: () => { const d = ui.draft, v = Number(d.amount);
+    if (!String(d.amount).trim()) { d.err = "Please enter an amount"; return render(); }
+    if (!Number.isFinite(v) || v <= 0) { d.err = "Please enter an amount bigger than zero"; return render(); }
+    if (ui.modal === "edit") { const i = S.spends.findIndex((s) => s.id === d.id); ui.lastUndo = { type: "edit", item: { ...S.spends[i] } }; S.spends[i] = { ...S.spends[i], amount: v, category: d.category, payment: d.payment, note: d.note.trim() }; ui.modal = null; toast("Changes saved", true); }
+    else { const x = { id: uid(), amount: v, category: d.category, payment: d.payment, note: d.note.trim(), date: new Date().toISOString(), source: "manual" }; S.spends.push(x); ui.lastUndo = { type: "remove", id: x.id }; ui.modal = null; toast("Spend added", true); } },
+};
+function finishLogin() { S.screen = S.budget ? "app" : "setup"; S.locked = false; render(); }
+
+/* ---------- Events ---------- */
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-act]");
+  if (!el) return;
+  if (el.dataset.act === "close" && e.target.closest("[data-stop]") && el.classList.contains("backdrop")) return; // clicks inside sheet
+  e.preventDefault(); act[el.dataset.act]?.(el.dataset.v, el);
+});
+document.addEventListener("submit", (e) => { e.preventDefault(); forms[e.target.dataset.form]?.(); });
+document.addEventListener("input", (e) => { const k = e.target.dataset.bind; if (!k) return; if (k === "scamText") ui.scamText = e.target.value; else { ui.draft[k] = e.target.value; ui.draft.err = ""; } });
+
+/* Auto-lock after 60 s of no activity */
+let lastActive = Date.now();
+["click", "keydown", "touchstart"].forEach((t) => document.addEventListener(t, () => (lastActive = Date.now())));
+setInterval(() => { if (S.sec.appLock && S.screen === "app" && !S.locked && Date.now() - lastActive > 60000) { log("Auto-locked"); act.lock(); } }, 5000);
+if (S.sec.appLock && S.screen === "app") S.locked = true;
+render();
+</script>
+</body>
+</html>

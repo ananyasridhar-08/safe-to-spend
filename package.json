@@ -1,0 +1,12 @@
+{
+  "name": "safe-to-spend",
+  "version": "2.0.0",
+  "description": "Safe-to-Spend: Design Thinking prototype with a simulated read-only bank connection and security features",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
